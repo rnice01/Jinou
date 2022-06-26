@@ -1,7 +1,8 @@
 port module Main exposing (..)
 
 import Browser exposing (UrlRequest)
-import Html exposing (Html, button, div, li, node, text, ul)
+import Html exposing (Attribute, Html, a, br, button, div, li, node, text, ul)
+import Html.Attributes exposing (attribute, href)
 import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Json.Decode exposing (..)
@@ -22,7 +23,7 @@ type RustCmd =
   LS
 
 -- port invokeCommand : (RustCmd) -> Cmd msg
-port invokeLs : () -> Cmd msg
+port invokeLs : String -> Cmd msg
 port receiveResult : (Json.Decode.Value -> msg) -> Sub msg
 
 
@@ -36,6 +37,8 @@ type alias Model =
 type alias File =
   {
     name : String
+    , isDir : Bool
+    , path : String
   }
 
 
@@ -44,17 +47,19 @@ initialModel = { files = [] }
 
 
 type Msg = 
-    Init | InvokeLs | OnUrlChange Url | OnUrlRequest UrlRequest | SetModel Model | NoOp
+    Init | InvokeLs String | OnUrlChange Url | OnUrlRequest UrlRequest | SetModel Model | NoOp | ChangeDirectory String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
+    ChangeDirectory dirPath ->
+      (model, invokeLs dirPath)
     Init ->
       (model, Cmd.none)
 
-    InvokeLs ->
+    InvokeLs path ->
       ( { model | files = [] }
-      , invokeLs()
+      , invokeLs path
       )
     
     NoOp ->
@@ -76,10 +81,24 @@ view model =
   []
   [
     div []
-      [ button [ onClick InvokeLs ] [ text "LS" ]
-      , ul []
-          (List.map (\file -> li [] [ text file.name ]) model.files)
+      [ button [ onClick <| InvokeLs "." ] [ text "LS" ]
+      , div []
+          (List.map (\file -> fileDetails file) model.files)
       ]
+  ]
+
+
+fileDetails : File -> Html Msg
+fileDetails file =
+  let
+    fileName = if file.isDir then
+                li [] [a [href "#", onClick <| ChangeDirectory file.path] [text file.name]]
+              else
+                li [] [text file.name]
+  in
+  ul [] [
+    fileName
+    , li [] [text file.path]
   ]
 
 
@@ -111,8 +130,10 @@ decodeFiles =
 
 decodeFile : Json.Decode.Decoder File
 decodeFile =
-    Json.Decode.succeed File
-        |> required "name" (Json.Decode.string)
+    Json.Decode.map3 File
+        (field "name" (Json.Decode.string))
+        (field "isDir" (Json.Decode.bool))
+        (field "path" (Json.Decode.string))
 
 
 subscriptions : Model -> Sub Msg

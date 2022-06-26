@@ -3,15 +3,30 @@
   windows_subsystem = "windows"
 )]
 use std::process::Command;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct File {
+  name: String
+}
+
+#[derive(Serialize, Deserialize)]
+struct Model {
+  files: Vec<File>,
+}
 
 #[tauri::command]
-fn ls() -> Vec<String> {
+fn ls() -> Model {
   let output = Command::new("ls")
         .output()
         .expect("ls command failed to start");
 
         
-  String::from_utf8(output.stdout).expect("").lines().map(|l| String::from(l)).collect()
+  let files = String::from_utf8(output.stdout).expect("Failed to convert command bytes to String").lines().map(|l| File { name: String::from(l) }).collect();
+
+  Model {
+    files: files
+  }
 }
 
 fn main() {
